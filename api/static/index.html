@@ -247,7 +247,7 @@ async function analyze() {
     </div>`;
 
   try {
-    const resp = await fetch(`/analyze?ca=${encodeURIComponent(ca)}`);
+    const resp = await fetch(`/demo?ca=${encodeURIComponent(ca)}`);
     const data = await resp.json();
 
     if (resp.status === 402) {
