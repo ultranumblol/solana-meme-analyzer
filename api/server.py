@@ -10,6 +10,8 @@ import time
 import requests
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Add scripts dir to path so we can import the analyzer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
@@ -27,6 +29,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # ============================================================
 # x402 Payment Middleware
@@ -118,16 +124,14 @@ def settle_x402_payment(payment_header: str) -> dict:
 
 @app.get("/")
 def root():
+    index = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(index):
+        return FileResponse(index)
     return {
         "name": "Solana Meme Token Analyzer API",
         "version": "1.0.0",
         "price_per_request": f"${PRICE_PER_REQUEST} USDC",
-        "payment_protocol": "x402",
-        "network": "Base",
-        "endpoints": {
-            "analyze": "GET /analyze?ca=<TOKEN_CA>",
-            "health": "GET /health"
-        }
+        "endpoints": {"analyze": "GET /analyze?ca=<TOKEN_CA>"}
     }
 
 

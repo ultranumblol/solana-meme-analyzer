@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Solana Meme Token Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+    .container { width: 100%; max-width: 760px; }
+
+    h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #9945ff, #14f195);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      text-align: center;
+      color: #8b949e;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 0.95rem;
+      padding: 12px 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus { border-color: #9945ff; }
+    input[type="text"]::placeholder { color: #484f58; }
+
+    button {
+      background: linear-gradient(135deg, #9945ff, #14f195);
+      border: none;
+      border-radius: 8px;
+      color: #0d1117;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 12px 24px;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Risk badge */
+    .risk-banner {
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .risk-LOW    { background: #0d2a1a; border: 1px solid #14f195; }
+    .risk-MEDIUM { background: #2a1f00; border: 1px solid #e3a008; }
+    .risk-HIGH   { background: #2a0d0d; border: 1px solid #f85149; }
+    .risk-EXTREME{ background: #1e0000; border: 1px solid #ff0000; }
+
+    .risk-icon { font-size: 2.2rem; }
+    .risk-label { font-size: 1.3rem; font-weight: 700; }
+    .risk-LOW    .risk-label { color: #14f195; }
+    .risk-MEDIUM .risk-label { color: #e3a008; }
+    .risk-HIGH   .risk-label { color: #f85149; }
+    .risk-EXTREME .risk-label{ color: #ff4444; }
+    .risk-meta { font-size: 0.85rem; color: #8b949e; margin-top: 3px; }
+
+    /* Token info */
+    .token-info {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .info-item { display: flex; flex-direction: column; gap: 3px; }
+    .info-label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+    .info-value { font-size: 1rem; font-weight: 600; }
+
+    /* Warnings */
+    .warnings { margin-bottom: 20px; }
+    .warning-item {
+      background: #2a0d0d;
+      border-left: 3px solid #f85149;
+      border-radius: 0 8px 8px 0;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      color: #ffa198;
+    }
+
+    /* Holder table */
+    .table-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead { background: #21262d; }
+    th {
+      padding: 11px 14px;
+      text-align: left;
+      color: #8b949e;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: .05em;
+    }
+    td { padding: 10px 14px; border-top: 1px solid #21262d; }
+    tr:hover td { background: #1c2128; }
+
+    .tag-lp_pool         { color: #58a6ff; }
+    .tag-suspected_insider{ color: #f85149; font-weight: 600; }
+    .tag-whale_or_exchange{ color: #d2a8ff; }
+    .tag-normal          { color: #8b949e; }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 140px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px 18px;
+    }
+    .stat-card .num { font-size: 1.6rem; font-weight: 700; }
+    .stat-card .lbl { font-size: 0.78rem; color: #8b949e; margin-top: 2px; }
+    .red  { color: #f85149; }
+    .green{ color: #14f195; }
+    .yellow{color: #e3a008; }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 48px;
+      color: #8b949e;
+      font-size: 0.95rem;
+    }
+    .spinner {
+      display: inline-block;
+      width: 28px; height: 28px;
+      border: 3px solid #30363d;
+      border-top-color: #9945ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      background: #2a0d0d;
+      border: 1px solid #f85149;
+      border-radius: 10px;
+      padding: 18px 22px;
+      color: #ffa198;
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: #484f58;
+    }
+    .footer a { color: #58a6ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🔍 Solana Meme Analyzer</h1>
+  <p class="subtitle">Detect insider wallets &amp; rug risk for any Solana token</p>
+
+  <div class="input-row">
+    <input type="text" id="caInput" placeholder="Paste token contract address (CA)..." />
+    <button id="analyzeBtn" onclick="analyze()">Analyze</button>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="footer">
+    Powered by DexScreener &amp; Solana RPC &nbsp;·&nbsp;
+    <a href="https://github.com/ultranumblol/solana-meme-analyzer" target="_blank">GitHub</a>
+  </div>
+</div>
+
+<script>
+const TAG_LABELS = {
+  lp_pool: '🦄 LP Pool',
+  suspected_insider: '⚠️ Suspected Insider',
+  whale_or_exchange: '🐋 Whale / Exchange',
+  normal: 'Normal'
+};
+const RISK_ICONS = { LOW: '✅', MEDIUM: '⚠️', HIGH: '🚨', EXTREME: '💀' };
+const RISK_DESC  = {
+  LOW: 'No major red flags detected.',
+  MEDIUM: 'Some concentration — proceed with caution.',
+  HIGH: 'Insider wallets or high concentration detected.',
+  EXTREME: 'Extreme concentration — high dump risk!'
+};
+
+async function analyze() {
+  const ca = document.getElementById('caInput').value.trim();
+  if (!ca) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  const result = document.getElementById('result');
+  btn.disabled = true;
+  result.innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div><br>
+      Scanning holders… this takes 10–20 seconds
+    </div>`;
+
+  try {
+    const resp = await fetch(`/analyze?ca=${encodeURIComponent(ca)}`);
+    const data = await resp.json();
+
+    if (resp.status === 402) {
+      result.innerHTML = `<div class="error-box">💳 This API requires a $0.02 USDC payment via x402 (Base chain).<br>
+        Use an AI agent with <code>npx awal@latest x402 pay</code> to access programmatically.</div>`;
+      btn.disabled = false;
+      return;
+    }
+    if (!resp.ok) {
+      result.innerHTML = `<div class="error-box">❌ ${data.detail || 'Analysis failed. Please check the CA and try again.'}</div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    const { token, risk, holders } = data;
+    const conc = risk.top10_concentration_pct;
+    const concColor = conc > 50 ? 'red' : conc > 30 ? 'yellow' : 'green';
+
+    result.innerHTML = `
+      <div class="risk-banner risk-${risk.level}">
+        <div class="risk-icon">${RISK_ICONS[risk.level]}</div>
+        <div>
+          <div class="risk-label">Risk: ${risk.level}</div>
+          <div class="risk-meta">${RISK_DESC[risk.level]}</div>
+        </div>
+      </div>
+
+      <div class="token-info">
+        <div class="info-item">
+          <span class="info-label">Token</span>
+          <span class="info-value">$${token.symbol}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Price</span>
+          <span class="info-value">$${parseFloat(token.price_usd).toPrecision(4)}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Liquidity</span>
+          <span class="info-value">$${Number(token.liquidity_usd).toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="num ${concColor}">${conc}%</div>
+          <div class="lbl">Top 10 Concentration</div>
+        </div>
+        <div class="stat-card">
+          <div class="num ${risk.suspected_insider_count > 0 ? 'red' : 'green'}">${risk.suspected_insider_count}</div>
+          <div class="lbl">Suspected Insiders</div>
+        </div>
+      </div>
+
+      ${risk.warnings.length ? `
+        <div class="warnings">
+          ${risk.warnings.map(w => `<div class="warning-item">⚠️ ${w}</div>`).join('')}
+        </div>` : ''}
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Address</th>
+              <th>Holdings</th>
+              <th>SOL Balance</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${holders.map(h => `
+              <tr>
+                <td>${h.rank}</td>
+                <td style="font-family:monospace;font-size:0.82rem">${h.address.slice(0,6)}…${h.address.slice(-4)}</td>
+                <td><strong>${h.percent}%</strong></td>
+                <td>${h.sol_balance !== null ? h.sol_balance + ' SOL' : '—'}</td>
+                <td class="tag-${h.tag}">${TAG_LABELS[h.tag] || h.tag}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    result.innerHTML = `<div class="error-box">❌ Network error. Please try again.</div>`;
+  }
+  btn.disabled = false;
+}
+
+document.getElementById('caInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyze();
+});
+</script>
+</body>
+</html>
