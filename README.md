@@ -55,6 +55,16 @@ LP Address: 7xKXtg2CW...
 🚨 高度控盘预警！庄家随时可能砸盘。
 ```
 
+## Paid API
+
+A hosted version is available as a pay-per-request API ($0.02 USDC via x402 on Base chain):
+
+```
+https://solana-meme-analyzer-production.up.railway.app/analyze?ca=<TOKEN_CA>
+```
+
+No API key or subscription needed — just pay per request.
+
 ## Use as an OpenClaw Skill
 
 Install via the OpenClaw CLI:

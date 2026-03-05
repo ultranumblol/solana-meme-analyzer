@@ -27,10 +27,10 @@ No setup required — just call the endpoint and pay $0.02 USDC per analysis.
 
 ```bash
 # Check payment requirements
-npx awal@latest x402 details https://solana-meme-analyzer.up.railway.app/analyze?ca=TOKEN_CA
+npx awal@latest x402 details https://solana-meme-analyzer-production.up.railway.app/analyze?ca=TOKEN_CA
 
 # Make a paid request (auto-pays from your wallet)
-npx awal@latest x402 pay "https://solana-meme-analyzer.up.railway.app/analyze?ca=TOKEN_CA"
+npx awal@latest x402 pay "https://solana-meme-analyzer-production.up.railway.app/analyze?ca=TOKEN_CA"
 ```
 
 Payment is settled instantly on Base chain. No API keys or subscriptions needed.
