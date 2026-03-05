@@ -158,24 +158,62 @@ async def _run_analysis(ca: str):
         dex_info = analyzer.get_token_info_dex()
         if not dex_info:
             raise HTTPException(status_code=404, detail="Token not found on DexScreener.")
-        symbol = dex_info['baseToken']['symbol']
-        price = dex_info.get('priceUsd', '0')
-        lp_address = dex_info.get('pairAddress')
+
+        # ── DexScreener rich data ──────────────────────────────────────────
+        base_token = dex_info.get('baseToken', {})
+        symbol      = base_token.get('symbol', '?')
+        name        = base_token.get('name', '')
+        price       = dex_info.get('priceUsd', '0')
+        lp_address  = dex_info.get('pairAddress', '')
         liquidity_usd = dex_info.get('liquidity', {}).get('usd', 0)
+        fdv         = dex_info.get('fdv', 0)
+        market_cap  = dex_info.get('marketCap', 0)
+        dex_id      = dex_info.get('dexId', '')
+        price_change = dex_info.get('priceChange', {})
+        volume      = dex_info.get('volume', {})
+        txns        = dex_info.get('txns', {})
+
+        # Token age
+        pair_created_at = dex_info.get('pairCreatedAt')
+        age_seconds = 0
+        age_str = "unknown"
+        if pair_created_at:
+            age_seconds = int(time.time()) - pair_created_at // 1000
+            if age_seconds < 3600:
+                age_str = f"{age_seconds // 60}m"
+            elif age_seconds < 86400:
+                h = age_seconds // 3600
+                m = (age_seconds % 3600) // 60
+                age_str = f"{h}h {m}m"
+            else:
+                d = age_seconds // 86400
+                h = (age_seconds % 86400) // 3600
+                age_str = f"{d}d {h}h"
+
+        # Social / metadata
+        info_block = dex_info.get('info', {})
+        image_url = info_block.get('imageUrl', '')
+        socials = {}
+        for s in info_block.get('socials', []):
+            socials[s.get('type', '')] = s.get('url', '')
+        websites = [w.get('url', '') for w in info_block.get('websites', [])]
+
+        # ── On-chain holder analysis ───────────────────────────────────────
         total_supply = analyzer.get_token_supply()
         if not total_supply:
             raise HTTPException(status_code=503, detail="Could not fetch token supply.")
         holders = analyzer.get_largest_accounts()
         if not holders:
             raise HTTPException(status_code=503, detail="Could not fetch holder data. Set HELIUS_API_KEY for reliable results.")
+
         suspicious_count = 0
-        top10_share = 0
+        top10_share = 0.0
         result_holders = []
         for i, h in enumerate(holders):
-            addr = h['address']
+            addr   = h['address']
             amount = float(h['uiAmountString'])
-            percent = (amount / total_supply) * 100
-            tag = "normal"
+            pct    = (amount / total_supply) * 100
+            tag    = "normal"
             sol_balance = None
             if addr == lp_address:
                 tag = "lp_pool"
@@ -183,7 +221,7 @@ async def _run_analysis(ca: str):
                 sol_bal = analyzer.get_sol_balance(addr)
                 sol_balance = sol_bal if sol_bal != -1 else None
                 if i < 10:
-                    top10_share += percent
+                    top10_share += pct
                 if sol_bal != -1:
                     if sol_bal < 0.05:
                         tag = "suspected_insider"
@@ -191,30 +229,102 @@ async def _run_analysis(ca: str):
                     elif sol_bal > 500:
                         tag = "whale_or_exchange"
             elif i < 10:
-                top10_share += percent
+                top10_share += pct
             result_holders.append({
-                "rank": i + 1, "address": addr,
-                "percent": round(percent, 2), "tag": tag,
-                "sol_balance": round(sol_balance, 4) if sol_balance is not None else None
+                "rank": i + 1,
+                "address": addr,
+                "percent": round(pct, 2),
+                "tag": tag,
+                "sol_balance": round(sol_balance, 4) if sol_balance is not None else None,
             })
             time.sleep(0.05)
-        risk_level = "LOW"
+
+        # ── Risk scoring 0–100 ────────────────────────────────────────────
+        risk_score = 0
         warnings = []
+
+        # Insider wallets
+        if suspicious_count >= 5:
+            risk_score += 35
+        elif suspicious_count >= 3:
+            risk_score += 25
+        elif suspicious_count >= 1:
+            risk_score += 15
         if suspicious_count > 0:
-            warnings.append(f"{suspicious_count} suspected insider wallet(s) detected")
-            risk_level = "HIGH"
+            warnings.append(f"Detected {suspicious_count} suspected insider wallet(s) — SOL balance < 0.05")
+
+        # Concentration
         if top10_share > 50:
-            risk_level = "EXTREME"
+            risk_score += 30
             warnings.append(f"Extreme concentration: top 10 hold {top10_share:.1f}%")
         elif top10_share > 30:
-            if risk_level == "LOW": risk_level = "MEDIUM"
+            risk_score += 15
             warnings.append(f"High concentration: top 10 hold {top10_share:.1f}%")
+
+        # Liquidity depth
+        if liquidity_usd and liquidity_usd < 5_000:
+            risk_score += 20
+            warnings.append(f"Critically low liquidity: ${liquidity_usd:,.0f}")
+        elif liquidity_usd and liquidity_usd < 20_000:
+            risk_score += 10
+            warnings.append(f"Low liquidity: ${liquidity_usd:,.0f}")
+
+        # Token age
+        if age_seconds > 0:
+            if age_seconds < 3600:
+                risk_score += 15
+                warnings.append(f"Very new token — only {age_str} old")
+            elif age_seconds < 86400:
+                risk_score += 5
+
+        # Sell pressure (1h txns)
+        h1_txns = txns.get('h1', {})
+        h1_buys  = h1_txns.get('buys', 0)
+        h1_sells = h1_txns.get('sells', 0)
+        if h1_buys + h1_sells > 0:
+            sell_ratio = h1_sells / (h1_buys + h1_sells)
+            if sell_ratio > 0.70:
+                risk_score += 10
+                warnings.append(f"Heavy sell pressure last 1h: {sell_ratio*100:.0f}% sells")
+
+        risk_score = min(risk_score, 100)
+        if risk_score >= 80:
+            risk_level = "EXTREME"
+        elif risk_score >= 55:
+            risk_level = "HIGH"
+        elif risk_score >= 30:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+
         return {
-            "token": {"ca": ca, "symbol": symbol, "price_usd": price,
-                      "liquidity_usd": liquidity_usd, "lp_address": lp_address},
-            "risk": {"level": risk_level, "top10_concentration_pct": round(top10_share, 2),
-                     "suspected_insider_count": suspicious_count, "warnings": warnings},
-            "holders": result_holders
+            "token": {
+                "ca": ca,
+                "symbol": symbol,
+                "name": name,
+                "price_usd": price,
+                "price_change": price_change,
+                "market_cap": market_cap,
+                "fdv": fdv,
+                "liquidity_usd": liquidity_usd,
+                "volume": volume,
+                "txns": txns,
+                "age_str": age_str,
+                "age_seconds": age_seconds,
+                "dex": dex_id,
+                "pair_address": lp_address,
+                "image_url": image_url,
+                "socials": socials,
+                "websites": websites,
+            },
+            "risk": {
+                "score": risk_score,
+                "level": risk_level,
+                "top10_concentration_pct": round(top10_share, 2),
+                "suspected_insider_count": suspicious_count,
+                "warnings": warnings,
+            },
+            "holders": result_holders,
         }
     except HTTPException:
         raise
