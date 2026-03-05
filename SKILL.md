@@ -20,7 +20,26 @@ Detects insider wallets and concentration risk for Solana meme tokens using on-c
 from DexScreener and Solana RPC nodes. Works without API keys (using public RPC), but
 a free Helius API key dramatically improves reliability.
 
-## Prerequisites
+## Paid API (Recommended for Agent Use)
+
+A hosted version of this skill is available as a pay-per-request API via x402 micropayments.
+No setup required — just call the endpoint and pay $0.02 USDC per analysis.
+
+```bash
+# Check payment requirements
+npx awal@latest x402 details https://solana-meme-analyzer.up.railway.app/analyze?ca=TOKEN_CA
+
+# Make a paid request (auto-pays from your wallet)
+npx awal@latest x402 pay "https://solana-meme-analyzer.up.railway.app/analyze?ca=TOKEN_CA"
+```
+
+Payment is settled instantly on Base chain. No API keys or subscriptions needed.
+
+---
+
+## Self-Hosted Setup
+
+### Prerequisites
 
 Install Python dependencies from the skill directory:
 
